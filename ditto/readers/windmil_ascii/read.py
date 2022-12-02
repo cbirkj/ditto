@@ -39,6 +39,7 @@ class Reader(AbstractReader):
         super(Reader, self).__init__(**kwargs)
         self.windmil_folder = (
             r"C:\Users\alatif\Desktop\DiTTo\ditto\readers\windmil_ascii\Network"
+            #r"/Users/cbjones/Documents/Projects/Analysis/GridSimulations/Models/HCE/ASCII"
         )
 
         if "network_folder" in kwargs:
@@ -47,7 +48,8 @@ class Reader(AbstractReader):
     def filter_edges_by_class(self, class_name):
         relevant_edges = (
             (u, v)
-            for u, v, d in self.nxGraph.edges(data=True)
+            #for u, v, d in self.nxGraph.edges(data=True)
+            for u, v, d in self.nxGraph.edges("weight")
             if d["class"] == class_name
         )
         return relevant_edges
@@ -90,21 +92,30 @@ class Reader(AbstractReader):
         for node_name in self.nxGraph.nodes():
             node = Node(model)
             node.name = node_name
-            if "x" in self.nxGraph.node[node_name]:
+            if "x" in self.nxGraph.nodes[node_name]:
                 node_pos = Position(model)
-                node_pos.long = float(self.nxGraph.node[node_name]["x"])
-                node_pos.lat = float(self.nxGraph.node[node_name]["y"])
+                node_pos.long = float(self.nxGraph.nodes[node_name]["x"])
+                node_pos.lat = float(self.nxGraph.nodes[node_name]["y"])
                 node.positions.append(node_pos)
 
     def parse_lines(self, model):
+        #self.phase_2_index = {
+        #    "A": [0],
+        #    "B": [1],
+        #    "C": [2],
+        #    "AB": [0, 1],
+        #    "AC": [0, 2],
+        #    "BC": [1, 2],
+        #    "ABC": [0, 1, 2],
+        #}
         self.phase_2_index = {
-            "A": [0],
-            "B": [1],
-            "C": [2],
-            "AB": [0, 1],
-            "AC": [0, 2],
-            "BC": [1, 2],
-            "ABC": [0, 1, 2],
+            1: [0],
+            2: [1],
+            3: [2],
+            4: [0, 1],
+            5: [0, 2],
+            6: [1, 2],
+            7: [0, 1, 2],
         }
 
         OHcables = self.nxGraph.graph["Overhead Conductor"]
@@ -113,11 +124,11 @@ class Reader(AbstractReader):
         # Fuse = self.nxGraph.graph['Overcurrent Device']
         Layout = self.nxGraph.graph["Construction Code"]
         for node1, node2 in self.nxGraph.edges():
-            if self.nxGraph[node1][node2]["class"] == "line":
+            if self.nxGraph[node1][node2]['weight']["class"] == "line":
                 self.create_line(model, node1, node2, OHcables, UGcables)
-            elif self.nxGraph[node1][node2]["class"] == "switch":
+            elif self.nxGraph[node1][node2]['weight']["class"] == "switch":
                 self.create_switch(model, node1, node2)
-            elif self.nxGraph[node1][node2]["class"] == "device":
+            elif self.nxGraph[node1][node2]['weight']["class"] == "device":
                 self.create_device(model, node1, node2, Devices)
         self.parse_feeder_metadata(model)
         return
@@ -138,25 +149,26 @@ class Reader(AbstractReader):
 
         device.feeder_name = (
             ""
-            if not isinstance(self.nxGraph[node1][node2]["feeder"], str)
-            else self.nxGraph[node1][node2]["feeder"]
+            if not isinstance(self.nxGraph[node1][node2]['weight']["feeder"], str)
+            else self.nxGraph[node1][node2]['weight']["feeder"]
         )
         device.substation_name = (
             ""
-            if not isinstance(self.nxGraph[node1][node2]["substation"], str)
-            else self.nxGraph[node1][node2]["substation"]
+            if not isinstance(self.nxGraph[node1][node2]['weight']["substation"], str)
+            else self.nxGraph[node1][node2]['weight']["substation"]
         )
-        phases = self.nxGraph[node1][node2]["phases"]
+        phases = self.nxGraph[node1][node2]['weight']["phases"]
         phase_list = self.phase_2_index[phases]
 
-        for phase, phase_index in zip(phases, phase_list):
-            device_type = self.nxGraph[node1][node2]["equipment"][phase_index]
+        for phase, phase_index in zip([phases], phase_list):
+            phase = str(phase)
+            device_type = self.nxGraph[node1][node2]['weight']["equipment"][phase_index]
             device_data = Devices[Devices["Equipment Identifier"] == device_type]
             phase_device = Wire(model)
             phase_device.nameclass = device_type.replace(" ", "_")
             phase_device.phase = phase
             phase_device.is_open = bool(
-                self.nxGraph[node1][node2]["isClosed"][phase_index]
+                self.nxGraph[node1][node2]["weight"]["isClosed"][phase_index]
             )
             # TODO: Fix enabled property for device
             phase_device.is_switch = True
@@ -170,10 +182,10 @@ class Reader(AbstractReader):
             device.wires.append(phase_device)
 
         for node_name in [node1, node2]:
-            if "x" in self.nxGraph.node[node_name]:
+            if "x" in self.nxGraph.nodes[node_name]:
                 node_pos = Position(model)
-                node_pos.long = float(self.nxGraph.node[node_name]["x"])
-                node_pos.lat = float(self.nxGraph.node[node_name]["y"])
+                node_pos.long = float(self.nxGraph.nodes[node_name]["x"])
+                node_pos.lat = float(self.nxGraph.nodes[node_name]["y"])
                 device.positions.append(node_pos)
 
     def create_switch(self, model, node1, node2):
@@ -191,22 +203,22 @@ class Reader(AbstractReader):
         switch.length = 1  #
         switch.feeder_name = (
             ""
-            if isinstance(self.nxGraph[node1][node2]["feeder"], float)
-            else self.nxGraph[node1][node2]["feeder"]
+            if isinstance(self.nxGraph[node1][node2]['weight']["feeder"], float)
+            else self.nxGraph[node1][node2]['weight']["feeder"]
         )
         switch.substation_name = (
             ""
-            if isinstance(self.nxGraph[node1][node2]["substation"], float)
-            else self.nxGraph[node1][node2]["substation"]
+            if isinstance(self.nxGraph[node1][node2]['weight']["substation"], float)
+            else self.nxGraph[node1][node2]['weight']["substation"]
         )
-        phases = self.nxGraph[node1][node2]["phases"]
+        phases = self.nxGraph[node1][node2]['weight']["phases"]
         phase_list = self.phase_2_index[phases]
 
-        for phase, phase_index in zip(phases, phase_list):
+        for phase, phase_index in zip([phases], phase_list):
             phase_sw = Wire(model)
-            phase_sw.phase = phase
+            phase_sw.phase = str(phase)
             phase_sw.is_open = (
-                True if self.nxGraph[node1][node2]["state"] == "O" else False
+                True if self.nxGraph[node1][node2]['weight']["state"] == "O" else False
             )
             # TODO: Fix enabled property for switch
             phase_sw.is_switch = True
@@ -217,10 +229,10 @@ class Reader(AbstractReader):
             switch.wires.append(phase_sw)
 
         for node_name in [node1, node2]:
-            if "x" in self.nxGraph.node[node_name]:
+            if "x" in self.nxGraph.nodes[node_name]:
                 node_pos = Position(model)
-                node_pos.long = float(self.nxGraph.node[node_name]["x"])
-                node_pos.lat = float(self.nxGraph.node[node_name]["y"])
+                node_pos.long = float(self.nxGraph.nodes[node_name]["x"])
+                node_pos.lat = float(self.nxGraph.nodes[node_name]["y"])
                 switch.positions.append(node_pos)
 
     def create_line(self, model, node1, node2, OHcables, UGcables):
@@ -235,38 +247,39 @@ class Reader(AbstractReader):
         line.is_sectionalizer = False
         line.is_switch = False
         line.length = self.convert_to_meters(
-            float(self.nxGraph[node1][node2]["length"]), "ft"
+            float(self.nxGraph[node1][node2]["weight"]["length"]), "ft"
         )
         # line.nominal_voltage = float(self.nxGraph[node1][node2]['kv'])    #TODO: line nominal KV
-        line.line_type = self.nxGraph[node1][node2]["type"]
+        line.line_type = self.nxGraph[node1][node2]["weight"]["type"]
         line.feeder_name = (
             ""
-            if isinstance(self.nxGraph[node1][node2]["feeder"], float)
-            else self.nxGraph[node1][node2]["feeder"]
+            if isinstance(self.nxGraph[node1][node2]["weight"]["feeder"], float)
+            else self.nxGraph[node1][node2]["weight"]["feeder"]
         )
         line.substation_name = (
             ""
-            if isinstance(self.nxGraph[node1][node2]["substation"], float)
-            else self.nxGraph[node1][node2]["substation"]
+            if isinstance(self.nxGraph[node1][node2]["weight"]["substation"], float)
+            else self.nxGraph[node1][node2]["weight"]["substation"]
         )
 
         for node_name in [node1, node2]:
-            if "x" in self.nxGraph.node[node_name]:
+            if "x" in self.nxGraph.nodes[node_name]:
                 node_pos = Position(model)
-                node_pos.long = float(self.nxGraph.node[node_name]["x"])
-                node_pos.lat = float(self.nxGraph.node[node_name]["y"])
+                node_pos.long = float(self.nxGraph.nodes[node_name]["x"])
+                node_pos.lat = float(self.nxGraph.nodes[node_name]["y"])
                 line.positions.append(node_pos)
 
-        phases = self.nxGraph[node1][node2]["phases"]
+        phases = self.nxGraph[node1][node2]["weight"]["phases"]
         phase_list = self.phase_2_index[phases]
-        nNeutrals = int(self.nxGraph[node1][node2]["nNeutrals"])
+        nNeutrals = int(self.nxGraph[node1][node2]["weight"]["nNeutrals"])
         nertral_list = np.add(range(nNeutrals), 3)
         neutral_phases = "N" * nNeutrals
         if nNeutrals:
+            phases = str(phases)
             phases += neutral_phases
             phase_list.extend(nertral_list)
-        for phase, phase_index in zip(phases, phase_list):
-            conductor_name = self.nxGraph[node1][node2]["conductors"][phase_index]
+        for phase, phase_index in zip([phases], phase_list):
+            conductor_name = self.nxGraph[node1][node2]["weight"]["conductors"][phase_index]
             conductor_name = (
                 "default_ph_cond"
                 if (phase_index < 3) and (isinstance(conductor_name, float))
@@ -276,7 +289,7 @@ class Reader(AbstractReader):
             )
             phase_wire = Wire(model)
             phase_wire.nameclass = conductor_name.replace(" ", "_").replace(".", "_")
-            phase_wire.phase = phase
+            phase_wire.phase = str(phase)
             phase_wire.is_switch = False
             phase_wire.is_fuse = False
             phase_wire.is_recloser = False
@@ -286,7 +299,7 @@ class Reader(AbstractReader):
                 -1 if phase is "A" else 1 if phase is "C" else 0
             )  # TODO: Fix conductor layout later
             phase_wire.Y = 10 if phase is not "N" else 8
-            if self.nxGraph[node1][node2]["type"] == "overhead":
+            if self.nxGraph[node1][node2]["weight"]["type"] == "overhead":
                 cond_data = OHcables[OHcables["Equipment Identifier"] == conductor_name]
                 if len(cond_data):
                     phase_wire.gmr = self.convert_to_meters(
@@ -299,7 +312,7 @@ class Reader(AbstractReader):
                     phase_wire.resistance = self.convert_from_meters(
                         float(cond_data["Resistance @ 50"].iloc[0]), "mi"
                     )
-            if self.nxGraph[node1][node2]["type"] == "underground":
+            if self.nxGraph[node1][node2]["weight"]["type"] == "underground":
                 cond_data = UGcables[UGcables["Equipment Identifier"] == conductor_name]
                 if len(cond_data):
                     phase_wire.gmr = self.convert_to_meters(
@@ -354,18 +367,26 @@ class Reader(AbstractReader):
                     Dmatrix[i, j] = distance
             if line.wires:
                 Z = self.get_primitive_impedance_matrix(Dmatrix, GMRs, Rs)
-                if nNeutrals:
+                if nNeutrals:                    
                     Z = self.kron_reduction(Z)
                 line.impedance_matrix = Z.tolist()
 
     def parse_loads(self, model):
         loadmixes = self.nxGraph.graph["Load Mix"]
+        #print(self.nxGraph.edges())
         for node in self.nxGraph.nodes():
-            if "loads" in self.nxGraph.node[node] and len(
+
+            print(self.nxGraph.nodes[node])
+            print(list(self.nxGraph.edges([node])))
+            print()
+
+            if "loads" in self.nxGraph.nodes[node] and len(
                 list(self.nxGraph.edges([node]))
             ):
+                #print(self.nxGraph.nodes[node])
+                #print(list(self.nxGraph.edges([node])))
                 node1, node2 = list(self.nxGraph.edges([node]))[0]
-                for load_name, load_properties in self.nxGraph.node[node][
+                for load_name, load_properties in self.nxGraph.nodes[node][
                     "loads"
                 ].items():
                     if bool(load_properties["enabled"]):
@@ -391,22 +412,22 @@ class Reader(AbstractReader):
                         # TODO: Add loadshape attribute to the load object
                         load.feeder_name = (
                             ""
-                            if not isinstance(self.nxGraph[node1][node2]["feeder"], str)
-                            else self.nxGraph[node1][node2]["feeder"]
+                            if not isinstance(self.nxGraph[node1][node2]['weight']["feeder"], str)
+                            else self.nxGraph[node1][node2]['weight']["feeder"]
                         )
                         load.substation_name = (
                             ""
                             if not isinstance(
-                                self.nxGraph[node1][node2]["substation"], str
+                                self.nxGraph[node1][node2]['weight']["substation"], str
                             )
-                            else self.nxGraph[node1][node2]["substation"]
+                            else self.nxGraph[node1][node2]['weight']["substation"]
                         )
 
                         phases = load_properties["phases"]
                         phase_list = self.phase_2_index[phases]
-                        for phase, phase_index in zip(phases, phase_list):
+                        for phase, phase_index in zip([phases], phase_list):
                             load_phase = PhaseLoad(model)
-                            load_phase.phase = phase
+                            load_phase.phase = str(phase)
                             load_phase.p = float(load_properties["kw"][phase_index])
                             load_phase.q = float(load_properties["kvar"][phase_index])
                             load_phase.use_zip = useZIP
@@ -419,19 +440,19 @@ class Reader(AbstractReader):
                             load_phase.model = 1 if not useZIP else 8
                             load.phase_loads.append(load_phase)
 
-                        if "x" in self.nxGraph.node[node]:
+                        if "x" in self.nxGraph.nodes[node]:
                             node_pos = Position(model)
-                            node_pos.long = float(self.nxGraph.node[node]["x"])
-                            node_pos.lat = float(self.nxGraph.node[node]["y"])
+                            node_pos.long = float(self.nxGraph.nodes[node]["x"])
+                            node_pos.lat = float(self.nxGraph.nodes[node]["y"])
                             load.positions.append(node_pos)
 
     def parse_capacitors(self, model):
         for node in self.nxGraph.nodes():
-            if "capacitors" in self.nxGraph.node[node] and len(
+            if "capacitors" in self.nxGraph.nodes[node] and len(
                 list(self.nxGraph.edges([node]))
             ):
                 node1, node2 = list(self.nxGraph.edges([node]))[0]
-                for cap_name, cap_properties in self.nxGraph.node[node][
+                for cap_name, cap_properties in self.nxGraph.nodes[node][
                     "loads"
                 ].items():
                     if cap_properties["state"] != "Disconnected":

@@ -478,12 +478,16 @@ class AbstractReader(object):
                 cnts[zone][0] = 0
                 cnts[zone][1] += 1
 
+
         # dim = len(primitive_impedance_matrix)
         # zij = primitive_impedance_matrix[: dim - 1, : dim - 1]
         # zin = primitive_impedance_matrix[: dim - 1, -1][:, np.newaxis]
         # znn = primitive_impedance_matrix[dim - 1, dim - 1]
         # znj = primitive_impedance_matrix[-1, : dim - 1]
-        return zij - np.dot(zin, np.dot(np.linalg.inv(znn), znj))
+
+        #print(zij - np.dot(zin, np.dot(np.linalg.inv(znn)[0], znj)))
+
+        return zij - np.dot(zin, np.dot(np.linalg.inv(znn)[0], znj))
 
     def carson_equation_self(self, ri, GMRi):
         """Carson's equation for self impedance."""

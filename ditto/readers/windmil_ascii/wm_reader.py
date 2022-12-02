@@ -22,7 +22,7 @@ class wm2graph:
         self.tables = {}
         try:
             file_list = os.listdir(project_folder)
-            #print(file_list)
+            print(file_list)
             for file in file_list:
                 if file.lower().endswith('.asm'):
                     self.files['Assemblies'] = os.path.join(project_folder, file)
@@ -68,6 +68,8 @@ class wm2graph:
         self.tables['Equipment Data Headings'] = pd.DataFrame(std_file_headings)
         self.tables['Equipment Lib Headings'] = pd.DataFrame(seq_file_headings)
         self.create_graph()
+
+        #print(self.tables)
 
     def create_graph(self):
         self.library = {}
@@ -126,7 +128,7 @@ class wm2graph:
         if Ppty not in self.nxGraph[Node1][Node2]:
             inEdge = self.nxGraph.in_edges([Node1])
             if inEdge:
-                inEdgeNodes = list(inEdge[0])
+                inEdgeNodes = list(inEdge)[0] #list(inEdge[0])
                 return self.iterate_nodes(inEdgeNodes[0], inEdgeNodes[1], Ppty)
         else:
             return self.nxGraph[Node1][Node2][Ppty]
@@ -160,7 +162,9 @@ class wm2graph:
         return element_type_library
 
     def get_class_type_locations(self, class_name):
-        relevant_edges = ((u, v) for u, v, d in self.nxGraph.edges(data=True) if d['class'] == class_name)
+
+        #relevant_edges = ((u, v) for u, v, d in self.nxGraph.edges(data=True) if d['class'] == class_name)
+        relevant_edges = ((u, v) for u, v, d in self.nxGraph.edges("weight") if d['class'] == class_name)
         Xs=[]
         Ys=[]
         for edge in relevant_edges:
@@ -186,21 +190,21 @@ class wm2graph:
             }
             for edge in edges:
                 node1, node2 = edge
-                if 'x' in self.nxGraph.node[node1] and 'x' in self.nxGraph.node[node2]:
-                    x1 = self.nxGraph.node[node1]['x']
-                    y1 = self.nxGraph.node[node1]['y']
-                    x2 = self.nxGraph.node[node2]['x']
-                    y2 = self.nxGraph.node[node2]['y']
+                if 'x' in self.nxGraph.nodes[node1] and 'x' in self.nxGraph.nodes[node2]:
+                    x1 = self.nxGraph.nodes[node1]['x']
+                    y1 = self.nxGraph.nodes[node1]['y']
+                    x2 = self.nxGraph.nodes[node2]['x']
+                    y2 = self.nxGraph.nodes[node2]['y']
                     if None not in [x1, x2, y1, y2]:
                         self.plotdata['Xs'].append([x1, x2])
                         self.plotdata['Ys'].append([y1, y2])
 
                 for node in [node1, node2]:
-                    if 'loads' in self.nxGraph.node[node]:
-                        for load_name, load_properties in self.nxGraph.node[node]['loads'].items():
-                            if 'x' in self.nxGraph.node[node] and self.nxGraph.node[node]:
-                                x1 = self.nxGraph.node[node]['x']
-                                y1 = self.nxGraph.node[node]['y']
+                    if 'loads' in self.nxGraph.nodes[node]:
+                        for load_name, load_properties in self.nxGraph.nodes[node]['loads'].items():
+                            if 'x' in self.nxGraph.nodes[node] and self.nxGraph.nodes[node]:
+                                x1 = self.nxGraph.nodes[node]['x']
+                                y1 = self.nxGraph.nodes[node]['y']
                                 x2 = load_properties['x']
                                 y2 = load_properties['y']
                                 dist = np.sqrt((x1 - x2)**2 + (y1 - y2)**2)
@@ -211,23 +215,23 @@ class wm2graph:
                                     load_lines_ys.append([y1, y2])
 
         Linesource = ColumnDataSource(self.plotdata)
-        plot = figure(title=None, plot_width=900, plot_height=900,
+        plot = figure(title=None, #plot_width=900, plot_height=900,
                       tools=[ResetTool(), BoxSelectTool(), SaveTool(), BoxZoomTool(), WheelZoomTool(),
                              PanTool()])
 
         # plot edges (lines, fuses, switches, transformers, regulators)
-        plot.multi_line(xs="Xs", ys="Ys", source=Linesource, line_width=2, legend='Edges', line_color='#00008B') # , line_color=ColorBy
+        plot.multi_line(xs="Xs", ys="Ys", source=Linesource, line_width=2, line_color='#00008B')#, legend='Edges') # , line_color=ColorBy
         # plot loads
-        plot.triangle(x=load_x, y=load_y, legend='Loads', color='orange')
+        plot.triangle(x=load_x, y=load_y, color='orange')#, legend='Loads')
         # plot substation
         Xs, Ys = self.get_class_type_locations('substation')
-        plot.circle_x(x=Xs, y=Ys, size=14, legend='Substation', fill_color='red', line_color='black')
+        plot.circle_x(x=Xs, y=Ys, size=14, fill_color='red', line_color='black') #, legend='Substation'
         Xs, Ys = self.get_class_type_locations('regulator')
-        plot.hex(x=Xs, y=Ys, size=14, legend='Regulators', fill_color='lightgreen', line_color='black')
-        plot.multi_line(xs=load_lines_xs, ys=load_lines_ys, line_width=2, legend='Drop lines', line_color='black')
+        plot.hex(x=Xs, y=Ys, size=14, fill_color='lightgreen', line_color='black') #, legend='Regulators'
+        plot.multi_line(xs=load_lines_xs, ys=load_lines_ys, line_width=2, line_color='black') #, legend='Drop lines'
 
-        plot.legend.location = "top_left"
-        plot.legend.click_policy = "hide"
+        #plot.legend.location = "top_left"
+        #plot.legend.click_policy = "hide"
         curdoc().add_root(plot)
 
         show(plot)
@@ -235,7 +239,8 @@ class wm2graph:
 
     def get_graph_metrics(self):
         nxGraph = self.nxGraph.to_undirected()
-        islands = list(nx.connected_component_subgraphs(nxGraph))
+        #islands = list(nx.connected_component_subgraphs(nxGraph))
+        islands = list(nx.connected_components(nxGraph))
         print('Number of islands: ', len(islands))
         loops = nx.cycle_basis(nxGraph)
         print('Number of loops: ', len(loops))
@@ -291,13 +296,12 @@ class wm2graph:
         capacitors.index = range(len(capacitors))
         capacitors.columns = list(Headings)
         for r, capacitor in capacitors.iterrows():
-            print(capacitor)
             from_node = 'node_' + self.fix_string(capacitor['Parent Element Name'])
             #to_node = 'node_' + self.fix_string(load['Element Name'])
             if from_node in self.nxGraph.nodes():
-                if 'capacitors' not in self.nxGraph.node[from_node]:
-                    self.nxGraph.node[from_node]['capacitors'] = {}
-                self.nxGraph.node[from_node]['capacitors'][self.fix_string(capacitor['Element Name'])] = {
+                if 'capacitors' not in self.nxGraph.nodes[from_node]:
+                    self.nxGraph.nodes[from_node]['capacitors'] = {}
+                self.nxGraph.nodes[from_node]['capacitors'][self.fix_string(capacitor['Element Name'])] = {
                     'name'          : self.fix_string(capacitor['Element Name']),
                     'phases'        :capacitor['Phase Configuration'],
                     'x'             : capacitor['X Coordinate'],
@@ -311,7 +315,7 @@ class wm2graph:
                                        capacitor['kvar, Phase B'],
                                        capacitor['kvar, Phase C']],
                     'Ctrl Element'  : capacitor['Control Element'],
-                    'conn'          : capacitor_conn[capacitor['Connection']],
+                    'conn'          : capacitor_conn[int(capacitor['Connection'])],
                     'kvarRated'     : capacitor['Unit Size kvar'],
                     'control phase' : capacitor['Control Phase'],
                     'failure rate'  : capacitor['Failure Rate'],
@@ -329,9 +333,9 @@ class wm2graph:
             from_node = 'node_' + self.fix_string(load['Parent Element Name'])
             to_node = 'node_' + self.fix_string(load['Element Name'])
             if from_node in self.nxGraph.nodes():
-                if 'loads' not in self.nxGraph.node[from_node]:
-                    self.nxGraph.node[from_node]['loads'] = {}
-                self.nxGraph.node[from_node]['loads'][self.fix_string(load['Element Name'])] = {
+                if 'loads' not in self.nxGraph.nodes[from_node]:
+                    self.nxGraph.nodes[from_node]['loads'] = {}
+                self.nxGraph.nodes[from_node]['loads'][self.fix_string(load['Element Name'])] = {
                     'name'          : self.fix_string(load['Element Name']),
                     'type'          : customer_types[load['Consumer Type']],
                     'phases'        : load['Phase Configuration'],
@@ -396,11 +400,13 @@ class wm2graph:
                 'feeder'       : node['Feeder Name'],
                 'mGID'         : node['mGUID'],
             }
-            self.nxGraph.add_edge(from_node, to_node, reg_dict)
-            self.nxGraph.node[to_node] = {
-                'x': node['X Coordinate'],
-                'y': node['Y Coordinate'],
-            }
+            self.nxGraph.add_edge(from_node, to_node, weight=reg_dict)
+            #self.nxGraph.node[to_node] = {
+            #    'x': node['X Coordinate'],
+            #    'y': node['Y Coordinate'],
+            #}
+            self.nxGraph.nodes[to_node]['x'] = node['X Coordinate']
+            self.nxGraph.nodes[to_node]['y'] = node['Y Coordinate']
 
     def create_substation(self):
         Headings = self.tables['Equipment Data Headings']['Source']
@@ -432,11 +438,13 @@ class wm2graph:
                 'mGID'         : substation['mGUID'],
             }
             self.nxGraph.graph['kvBase'] = reg_dict['kv']
-            self.nxGraph.add_edge(from_node, to_node, reg_dict)
-            self.nxGraph.node[to_node] = {
-                'x': substation['X Coordinate'],
-                'y': substation['Y Coordinate'],
-            }
+            self.nxGraph.add_edge(from_node, to_node, weight=reg_dict)
+            #self.nxGraph.node[to_node] = {
+            #    'x': substation['X Coordinate'],
+            #    'y': substation['Y Coordinate'],
+            #}
+            self.nxGraph.nodes[to_node]['x'] = substation['X Coordinate']
+            self.nxGraph.nodes[to_node]['y'] = substation['Y Coordinate']
 
         return
 
@@ -485,11 +493,13 @@ class wm2graph:
                 'mGID'         : reg['mGUID'],
             }
 
-            self.nxGraph.add_edge(from_node, to_node, reg_dict)
-            self.nxGraph.node[to_node] = {
-                'x': reg['X Coordinate'],
-                'y': reg['Y Coordinate'],
-            }
+            self.nxGraph.add_edge(from_node, to_node, weight=reg_dict)
+            #self.nxGraph.node[to_node] = {
+            #    'x': reg['X Coordinate'],
+            #    'y': reg['Y Coordinate'],
+            #}
+            self.nxGraph.nodes[to_node]['x'] = reg['X Coordinate']
+            self.nxGraph.nodes[to_node]['y'] = reg['Y Coordinate']
 
     def create_transformers(self):
         Headings = self.tables['Equipment Data Headings']['Transformer']
@@ -529,12 +539,14 @@ class wm2graph:
                 'feeder'           : xfmr['Feeder Name'],
                 'mGID'             : xfmr['mGUID'],
             }
-            self.nxGraph.add_edge(from_node, to_node, fuse_dict)
+            self.nxGraph.add_edge(from_node, to_node, weight=fuse_dict)
 
-            self.nxGraph.node[to_node] = {
-                'x': xfmr['X Coordinate'],
-                'y': xfmr['Y Coordinate'],
-            }
+            #self.nxGraph.node[to_node] = {
+            #    'x': xfmr['X Coordinate'],
+            #    'y': xfmr['Y Coordinate'],
+            #}
+            self.nxGraph.nodes[to_node]['x'] = xfmr['X Coordinate']
+            self.nxGraph.nodes[to_node]['y'] = xfmr['Y Coordinate']
 
     def create_devices(self):
         Headings = self.tables['Equipment Data Headings']['Overcurrent Device']
@@ -570,11 +582,14 @@ class wm2graph:
                 'feeder'       : fuse['Feeder Name'],
                 'mGID'         : fuse['mGUID'],
             }
-            self.nxGraph.add_edge(from_node, to_node, fuse_dict)
-            self.nxGraph.node[to_node] = {
-                'x': fuse['X Coordinate'],
-                'y': fuse['Y Coordinate'],
-            }
+     
+            self.nxGraph.add_edge(from_node, to_node, weight=fuse_dict)
+            #self.nxGraph.node[to_node] = {
+            #    'x': fuse['X Coordinate'],
+            #    'y': fuse['Y Coordinate'],
+            #}
+            self.nxGraph.nodes[to_node]['x'] = fuse['X Coordinate']
+            self.nxGraph.nodes[to_node]['y'] = fuse['Y Coordinate']
 
     def create_switches(self):
         Headings = self.tables['Equipment Data Headings']['Switch']
@@ -603,11 +618,13 @@ class wm2graph:
                 'feeder'       : switch['Feeder Name'],
                 'mGID'         : switch['mGUID'],
             }
-            self.nxGraph.add_edge(from_node, to_node, switch_dict)
-            self.nxGraph.node[to_node] = {
-                'x': switch['X Coordinate'],
-                'y': switch['Y Coordinate'],
-            }
+            self.nxGraph.add_edge(from_node, to_node, weight=switch_dict)
+            #self.nxGraph.node[to_node] = {
+            #    'x': switch['X Coordinate'],
+            #    'y': switch['Y Coordinate'],
+            #}
+            self.nxGraph.nodes[to_node]['x'] = switch['X Coordinate']
+            self.nxGraph.nodes[to_node]['y'] = switch['Y Coordinate']
 
     def create_lines(self):
         Headings = self.tables['Equipment Data Headings']['Line']
@@ -644,11 +661,13 @@ class wm2graph:
 
                 }
 
-                self.nxGraph.add_edge(from_node, to_node, line_properties)
-                self.nxGraph.node[to_node] = {
-                    'x': line['X Coordinate'],
-                    'y': line['Y Coordinate'],
-                }
+                self.nxGraph.add_edge(from_node, to_node, weight=line_properties)
+                #self.nxGraph.node[to_node] = {
+                #    'x': line['X Coordinate'],
+                #    'y': line['Y Coordinate'],
+                #}
+                self.nxGraph.nodes[to_node]['x'] = line['X Coordinate']
+                self.nxGraph.nodes[to_node]['y'] = line['Y Coordinate']
 
     def fix_string(self, String):
         BannedChrs = [' ', '.', '{', '}']
